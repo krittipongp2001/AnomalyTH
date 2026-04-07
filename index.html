@@ -30,7 +30,7 @@
       </div>
     </form>
     <div class="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 text-center space-y-2">
-      <div class="font-semibold text-slate-600">📌 สมาชิกกิลใช้ User ด้านล่างในการเข้า</div>
+      <div class="font-semibold text-slate-600">📌 บัญชีทดสอบระบบ</div>
       <div class="flex justify-between items-center px-2">
         <span>สมาชิก (Member)</span>
         <span class="font-mono bg-white px-2 py-0.5 rounded border">user / user</span>
@@ -48,6 +48,7 @@
     <button onclick="toggleDarkMode()" id="dark-btn-mobile" class="text-white text-lg w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors flex-shrink-0" title="Dark mode">🌙</button>
   </div>
   <div id="sidebar-backdrop" onclick="closeSidebar()" style="display:none" class="fixed inset-0 bg-black/50 z-30"></div>
+  
   <div id="app-layout" class="flex h-screen overflow-hidden">
   <div id="sidebar" class="w-56 min-h-screen bg-gradient-to-b from-slate-900 to-blue-950 flex flex-col shadow-2xl flex-shrink-0">
     <div class="p-4 border-b border-white/10">
@@ -89,7 +90,10 @@
   </div>
 
   <div class="flex-1 overflow-auto" id="main-content"></div>
-  </div></div><div id="modal-overlay" style="display:none" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onclick="closeModal(event)">
+  </div>
+</div>
+
+<div id="modal-overlay" style="display:none" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onclick="closeModal(event)">
   <div id="modal-content" class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 max-h-[85vh] overflow-auto" onclick="event.stopPropagation()"></div>
 </div>
 
@@ -99,7 +103,7 @@
 // ============================================================
 // DEFAULT MEMBER DATA
 // ============================================================
-const MEMBERS_DEFAULT = [];
+const MEMBERS_DEFAULT = []; // ปล่อยว่างไว้เพื่อเริ่มต้นกิลด์ใหม่
 
 const JOB_INFO = {
   "Assassin Cross":{ role:"dps",     color:"#5b21b6", bg:"#ede9fe", emoji:"🗡️" },
@@ -147,7 +151,7 @@ let state = {
   signups: {}, glParties: {}, empParties: {},
   members: null,
   lastSync: null,
-  userRole: null // 'admin' หรือ 'member'
+  userRole: null
 };
 
 // 🟢 ใส่ URL ที่คัดลอกมาจาก Apps Script ตรงนี้
@@ -169,11 +173,11 @@ function saveState(){
     const copy={...state}; 
     delete copy.userRole; 
     
-    // 1. เซฟลงเครื่อง (เพื่อให้หน้าเว็บโหลดไวและจำค่าล่าสุดเสมอ)
+    // เซฟลงเครื่อง 
     localStorage.setItem("ro_gm_v3",JSON.stringify(copy)); 
 
-    // 2. ยิงข้อมูลไปเซฟที่ Google Sheets อัตโนมัติเมื่อเป็น Admin
-    if(APP_SCRIPT_URL && APP_SCRIPT_URL !== "วาง_URL_ของ_APPS_SCRIPT_ที่นี่" && state.userRole === 'admin'){
+    // ยิงข้อมูลไปเซฟที่ Google Sheets (อนุญาตให้ User ทำงานนี้ได้เพื่อให้ซิงค์ปาร์ตี้อัตโนมัติ)
+    if(APP_SCRIPT_URL && APP_SCRIPT_URL !== "วาง_URL_ของ_APPS_SCRIPT_ที่นี่"){
       document.getElementById('sync-status').textContent = 'กำลังบันทึกออนไลน์...';
       document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-yellow-400';
       
@@ -211,10 +215,8 @@ function startApp(){
   document.getElementById('login-container').style.display = 'none';
   document.getElementById('app-container').style.display = 'block';
   
-  // Update Role UI in sidebar
   document.getElementById('current-user-role').textContent = state.userRole === 'admin' ? '👑 ผู้ดูแลระบบ' : '👥 สมาชิกทั่วไป';
   
-  // Hide Settings for Members
   const navSettings = document.getElementById('nav-settings');
   const navDivider = document.getElementById('nav-divider-settings');
   if(state.userRole === 'member') {
@@ -230,8 +232,8 @@ function startApp(){
   updateDarkBtns();
   showView(state.currentView);
 
-  // Auto-sync ตอนเริ่มแอปถ้ามี URL (เฉพาะสมาชิกที่เปิดมาให้โหลดข้อมูลล่าสุดเสมอ)
-  if(state.userRole === 'member' && APP_SCRIPT_URL !== "วาง_URL_ของ_APPS_SCRIPT_ที่นี่") {
+  // Auto-sync ตอนเริ่มแอปถ้ามี URL (โหลดข้อมูลล่าสุดเสมอ)
+  if(APP_SCRIPT_URL !== "วาง_URL_ของ_APPS_SCRIPT_ที่นี่") {
       syncFromSheets();
   }
 }
@@ -352,7 +354,6 @@ async function syncFromSheets(){
         state.empParties = Object.keys(data.empParties).length ? data.empParties : state.empParties;
         state.lastSync = new Date().toISOString();
 
-        // เซฟลงเครื่อง (ไม่ต้องเรียก saveState() ป้องกันยิงกลับ)
         const copy={...state}; delete copy.userRole;
         localStorage.setItem("ro_gm_v3",JSON.stringify(copy));
 
@@ -361,11 +362,11 @@ async function syncFromSheets(){
         showToast(`✅ ซิงค์ข้อมูลล่าสุดสำเร็จ!`);
         rerender();
     } else {
-        throw new Error("ยังไม่มีข้อมูลในระบบ หรือดึงข้อมูลไม่ได้");
+        throw new Error("ยังไม่มีข้อมูลในระบบ");
     }
   }catch(e){
     console.error(e);
-    showToast(`❌ ซิงค์ข้อมูลล้มเหลว (หากดึงครั้งแรกให้ตั้งปาร์ตี้หรือเพิ่มสมาชิกแล้วระบบจะเซฟชีตให้ก่อน)`);
+    showToast(`❌ ซิงค์ข้อมูลล้มเหลว หรือยังไม่มีข้อมูล`);
     document.getElementById('sync-status').textContent='sync failed';
   }finally{
     if(btn){ btn.disabled=false; btn.innerHTML='🔄 โหลดข้อมูลจากคลาวด์'; }
@@ -522,7 +523,9 @@ function renderCalendar(){
         </div>`;
       }).join('')}
     </div>
-  </div></div></div></div>`;
+  </div></div>
+  </div>
+</div>`;
 }
 
 // ============================================================
@@ -532,7 +535,6 @@ let glEv = "guild_league_tue";
 
 function renderGuildLeague(){
   const MEMBERS=getMembers();
-  const isAdmin = state.userRole === 'admin';
   const glEvts=WEEKLY_EVENTS.filter(e=>e.type==="guild_league");
   const ev=WEEKLY_EVENTS.find(e=>e.id===glEv);
   const data=getGLData(glEv);
@@ -544,7 +546,7 @@ function renderGuildLeague(){
   return `
 <div class="p-4 md:p-6 w-full space-y-4 md:space-y-5">
   <div class="flex items-center justify-between flex-wrap gap-3">
-    <h1 class="text-2xl font-bold text-slate-800">⚔️ Guild League ${isAdmin ? '' : '<span class="text-sm font-normal text-slate-400 bg-slate-100 px-2 py-1 rounded">(โหมดดูข้อมูล)</span>'}</h1>
+    <h1 class="text-2xl font-bold text-slate-800">⚔️ Guild League</h1>
     <div class="flex gap-1.5">
       ${glEvts.map(e=>`<button class="tab-btn ${e.id===glEv?'active':''}" onclick="glEv='${e.id}';rerender()">
         ${e.icon} ${DAYS_SHORT[e.day]}
@@ -573,8 +575,8 @@ function renderGuildLeague(){
         const placed=partyIdx>=0||inSec;
         return `<div class="flex items-center gap-2 p-2 rounded-lg ${ring} cursor-pointer active:scale-95 transition-all select-none"
           onclick="clickCheckinGL(event,${m.id})"
-          ${isAdmin ? `draggable="true" ondragstart="startDragFromCheckin(event,${m.id},'gl')" ondragend="endDrag(event)" ontouchstart="touchStartDrag(event,${m.id},'gl',true)"` : ''}
-          title="${placed?'คลิกเพื่อนำออกจากปาร์ตี้':isAdmin?'ลากใส่ปาร์ตี้ หรือคลิกเพื่อเช็คชื่อ':'คลิกเพื่อเช็คชื่อ'}">
+          draggable="true" ondragstart="startDragFromCheckin(event,${m.id},'gl')" ondragend="endDrag(event)" ontouchstart="touchStartDrag(event,${m.id},'gl',true)"
+          title="${placed?'คลิกเพื่อนำออกจากปาร์ตี้':'ลากใส่ปาร์ตี้ หรือคลิกเพื่อเช็คชื่อ'}">
           <span class="text-base flex-shrink-0">${ji.emoji}</span>
           <div class="flex-1 min-w-0">
             <div class="text-xs font-semibold truncate">${m.name}</div>
@@ -585,7 +587,7 @@ function renderGuildLeague(){
       }).join('')}
     </div>
     <div class="text-xs text-slate-400 text-center mt-2">
-      ${isAdmin ? '🖱️ <strong>ลากใส่ปาร์ตี้</strong> หรือแตะชื่อ — ถ้าอยู่ปาร์ตี้แล้ว <strong>แตะเพื่อนำออก</strong>' : 'แตะชื่อเพื่อเช็คชื่อ ⬜→✅→❌'}
+      🖱️ <strong>ลากใส่ปาร์ตี้</strong> หรือแตะชื่อ — ถ้าอยู่ปาร์ตี้แล้ว <strong>แตะเพื่อนำออก</strong>
     </div>
   </div>
 
@@ -593,10 +595,8 @@ function renderGuildLeague(){
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
       <h2 class="font-bold text-slate-700">⚔️ จัดปาร์ตี้ Elite Field</h2>
       <div class="flex flex-wrap gap-2">
-        ${isAdmin ? `
         <button onclick="autoAssignGL()" class="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition-colors">🔀 Auto จัดปาร์ตี้</button>
         <button onclick="clearGL()" class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300 transition-colors">🗑️ ล้าง</button>
-        ` : ''}
         <button onclick="copyGL()" class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors">📋 Copy</button>
       </div>
     </div>
@@ -605,7 +605,7 @@ function renderGuildLeague(){
       <span class="px-3 py-1 rounded-full bg-orange-100 text-orange-700 font-semibold">Secondary: ${data.secondary.length} คน</span>
       ${unassigned.length?`<span class="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 font-semibold">ยังไม่ได้จัด: ${unassigned.length} คน</span>`:''}
     </div>
-    ${(unassigned.length && isAdmin)?`
+    ${(unassigned.length)?`
     <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
       <div class="text-xs font-semibold text-yellow-700 mb-2">รอจัดปาร์ตี้ · <span class="font-normal">ลากใส่ปาร์ตี้ หรือคลิกเพื่อเลือกสนาม</span></div>
       <div class="flex flex-wrap gap-1.5">${unassigned.map(m=>memberChip(m,`openMemberModal('${glEv}',${m.id},null)`,` draggable="true" ondragstart="startDragGL(event,${m.id})" ondragend="endDrag(event)"`)).join('')}</div>
@@ -615,26 +615,26 @@ function renderGuildLeague(){
       ${data.elite.map((party,pi)=>{
         const full=party.length>=5;
         return `<div class="party-box ${full?'full':''}" data-drop="elite" data-pi="${pi}"
-          ${isAdmin ? `ondragover="event.preventDefault()" ondragenter="event.preventDefault();this.classList.add('drag-over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('drag-over')" ondrop="dropToElite(event,${pi},this)"` : ''}>
+          ondragover="event.preventDefault()" ondragenter="event.preventDefault();this.classList.add('drag-over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('drag-over')" ondrop="dropToElite(event,${pi},this)">
           <div class="flex items-center justify-between mb-2">
             <span class="font-bold text-xs text-slate-600">ปาร์ตี้ ${pi+1}</span>
             <span class="text-xs px-1.5 py-0.5 rounded-full ${full?'bg-green-100 text-green-700':'bg-slate-100 text-slate-500'}">${party.length}/5</span>
           </div>
-          ${(party.length===0 && isAdmin)?'<div class="text-slate-300 text-xs text-center mt-4 pointer-events-none">↓ ลากสมาชิกมาวางที่นี่</div>':''}
+          ${(party.length===0)?'<div class="text-slate-300 text-xs text-center mt-4 pointer-events-none">↓ ลากสมาชิกมาวางที่นี่</div>':''}
           <div class="space-y-1">
             ${party.map(mid=>{
               const m=getMember(mid); if(!m) return '';
               const ji=getJobInfo(m.job);
-              return `<div class="party-member flex items-center gap-1.5 text-xs p-1.5 rounded-lg transition-opacity" style="background:${ji.bg};${isAdmin?'cursor:grab':''}"
-                ${isAdmin ? `draggable="true" ondragstart="if(event.target.closest('button')){event.preventDefault();return;}startDragGL(event,${mid})" ondragend="endDrag(event)" ontouchstart="if(!event.target.closest('button'))touchStartDrag(event,${mid},'gl',false)"` : ''}>
-                ${isAdmin ? '<span class="text-slate-300 text-xs leading-none select-none">⠿</span>' : ''}
+              return `<div class="party-member flex items-center gap-1.5 text-xs p-1.5 rounded-lg transition-opacity" style="background:${ji.bg};cursor:grab"
+                draggable="true" ondragstart="if(event.target.closest('button')){event.preventDefault();return;}startDragGL(event,${mid})" ondragend="endDrag(event)" ontouchstart="if(!event.target.closest('button'))touchStartDrag(event,${mid},'gl',false)">
+                <span class="text-slate-300 text-xs leading-none select-none">⠿</span>
                 <span>${ji.emoji}</span>
                 <span class="pmt flex-1 font-medium truncate" style="color:${ji.color}">${m.name}</span>
-                ${isAdmin ? `<button onclick="event.stopPropagation();removeElite(${pi},${mid})" class="text-slate-300 hover:text-red-400 transition-colors leading-none">✕</button>` : ''}
+                <button onclick="event.stopPropagation();removeElite(${pi},${mid})" class="text-slate-300 hover:text-red-400 transition-colors leading-none">✕</button>
               </div>`;
             }).join('')}
           </div>
-          ${(!full && isAdmin)?`<button onclick="openPartyModal(${pi})" class="mt-2 w-full text-xs text-slate-400 hover:text-blue-500 py-1 border border-dashed border-slate-200 hover:border-blue-300 rounded-lg transition-colors">+ เพิ่ม</button>`:''}
+          ${(!full)?`<button onclick="openPartyModal(${pi})" class="mt-2 w-full text-xs text-slate-400 hover:text-blue-500 py-1 border border-dashed border-slate-200 hover:border-blue-300 rounded-lg transition-colors">+ เพิ่ม</button>`:''}
         </div>`;
       }).join('')}
     </div>
@@ -645,18 +645,18 @@ function renderGuildLeague(){
       <h2 class="font-bold text-slate-700">🛡️ Secondary Field <span class="text-sm font-normal text-slate-400">(${data.secondary.length} คน)</span></h2>
     </div>
     <div class="rounded-xl transition-all min-h-[56px]" data-drop="secondary"
-      ${isAdmin ? `ondragover="event.preventDefault()" ondragenter="event.preventDefault();this.classList.add('drag-over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('drag-over')" ondrop="dropToSecondaryZone(event,this)"` : ''}
+      ondragover="event.preventDefault()" ondragenter="event.preventDefault();this.classList.add('drag-over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('drag-over')" ondrop="dropToSecondaryZone(event,this)"
       style="border:2px dashed #e2e8f0;padding:10px">
       ${data.secondary.length===0
-        ? `<div class="text-center text-slate-300 text-sm py-2 pointer-events-none">${isAdmin ? '↓ ลากสมาชิกมาวาง Secondary' : 'ยังไม่มีสมาชิกใน Secondary'}</div>`
+        ? `<div class="text-center text-slate-300 text-sm py-2 pointer-events-none">↓ ลากสมาชิกมาวาง Secondary</div>`
         :`<div class="flex flex-wrap gap-2">
           ${data.secondary.map(mid=>{
             const m=getMember(mid); if(!m) return '';
             const ji=getJobInfo(m.job);
-            return `<div class="party-member flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-opacity" style="background:${ji.bg};${isAdmin?'cursor:grab':''}"
-              ${isAdmin ? `draggable="true" ondragstart="if(event.target.closest('button')){event.preventDefault();return;}startDragGL(event,${mid})" ondragend="endDrag(event)" ontouchstart="if(!event.target.closest('button'))touchStartDrag(event,${mid},'gl',false)"` : ''}>
+            return `<div class="party-member flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-opacity" style="background:${ji.bg};cursor:grab"
+              draggable="true" ondragstart="if(event.target.closest('button')){event.preventDefault();return;}startDragGL(event,${mid})" ondragend="endDrag(event)" ontouchstart="if(!event.target.closest('button'))touchStartDrag(event,${mid},'gl',false)">
               <span>${ji.emoji}</span><span class="pmt font-medium" style="color:${ji.color}">${m.name}</span>
-              ${isAdmin ? `<button onclick="event.stopPropagation();removeSecondary(${mid})" class="text-slate-300 hover:text-red-400 transition-colors text-xs ml-1">✕</button>` : ''}
+              <button onclick="event.stopPropagation();removeSecondary(${mid})" class="text-slate-300 hover:text-red-400 transition-colors text-xs ml-1">✕</button>
             </div>`;
           }).join('')}
         </div>`}
@@ -672,7 +672,6 @@ let empEv = "emperium_sun";
 
 function renderEmperium(){
   const MEMBERS=getMembers();
-  const isAdmin = state.userRole === 'admin';
   const ev=WEEKLY_EVENTS.find(e=>e.id===empEv);
   const attending=getAttending(empEv);
   const parties=getEmpData(empEv);
@@ -681,7 +680,7 @@ function renderEmperium(){
 
   return `
 <div class="p-4 md:p-6 w-full space-y-4 md:space-y-5">
-  <h1 class="text-2xl font-bold text-slate-800">🏰 Emperium Overrun ${isAdmin ? '' : '<span class="text-sm font-normal text-slate-400 bg-slate-100 px-2 py-1 rounded">(โหมดดูข้อมูล)</span>'}</h1>
+  <h1 class="text-2xl font-bold text-slate-800">🏰 Emperium Overrun</h1>
   <div class="card p-5">
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
       <h2 class="font-bold text-slate-700">📋 เช็คชื่อ</h2>
@@ -698,8 +697,8 @@ function renderEmperium(){
         
         return `<div class="flex items-center gap-2 p-2 rounded-lg ${ring} cursor-pointer active:scale-95 transition-all select-none"
           onclick="clickCheckinEmp(event,${m.id})"
-          ${isAdmin ? `draggable="true" ondragstart="startDragFromCheckin(event,${m.id},'emp')" ondragend="endDrag(event)" ontouchstart="touchStartDrag(event,${m.id},'emp',true)"` : ''}
-          title="${placed?'คลิกเพื่อนำออกจากปาร์ตี้':isAdmin?'ลากใส่ปาร์ตี้ หรือคลิกเพื่อเช็คชื่อ':'คลิกเพื่อเช็คชื่อ'}">
+          draggable="true" ondragstart="startDragFromCheckin(event,${m.id},'emp')" ondragend="endDrag(event)" ontouchstart="touchStartDrag(event,${m.id},'emp',true)"
+          title="${placed?'คลิกเพื่อนำออกจากปาร์ตี้':'ลากใส่ปาร์ตี้ หรือคลิกเพื่อเช็คชื่อ'}">
           <span class="text-base flex-shrink-0">${ji.emoji}</span>
           <div class="flex-1 min-w-0">
             <div class="text-xs font-semibold truncate">${m.name}</div>
@@ -715,47 +714,44 @@ function renderEmperium(){
     <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
       <h2 class="font-bold text-slate-700">👥 จัดปาร์ตี้</h2>
       <div class="flex gap-2">
-        ${isAdmin ? `<button onclick="addEmpParty()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition-colors">+ สร้างปาร์ตี้</button>` : ''}
+        <button onclick="addEmpParty()" class="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition-colors">+ สร้างปาร์ตี้</button>
         ${parties.length?`<button onclick="copyEmp()" class="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors">📋 Copy</button>`:''}
       </div>
     </div>
-    ${(unassigned.length && isAdmin)?`
+    ${(unassigned.length)?`
     <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
       <div class="text-xs font-semibold text-blue-700 mb-2">ยังไม่ได้จัดปาร์ตี้ (${unassigned.length} คน) · <span class="font-normal">ลากใส่ปาร์ตี้ได้เลย</span></div>
       <div class="flex flex-wrap gap-1.5">${unassigned.map(m=>memberChip(m,'',` draggable="true" ondragstart="startDragEmp(event,${m.id})" ondragend="endDrag(event)"`)).join('')}</div>
     </div>`:''}
     ${parties.length===0
-      ? `<div class="text-center text-slate-300 text-sm py-12 border-2 border-dashed border-slate-200 rounded-xl">${isAdmin ? 'กด "+ สร้างปาร์ตี้" เพื่อเริ่ม' : 'ยังไม่มีปาร์ตี้ถูกสร้าง'}</div>`
+      ? `<div class="text-center text-slate-300 text-sm py-12 border-2 border-dashed border-slate-200 rounded-xl">กด "+ สร้างปาร์ตี้" เพื่อเริ่ม</div>`
       :`<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         ${parties.map((party,pi)=>`
         <div class="party-box emp-party" data-drop="emp" data-pi="${pi}"
-          ${isAdmin ? `ondragover="event.preventDefault()" ondragenter="event.preventDefault();this.classList.add('drag-over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('drag-over')" ondrop="dropToEmpParty(event,${pi},this)"` : ''}>
+          ondragover="event.preventDefault()" ondragenter="event.preventDefault();this.classList.add('drag-over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('drag-over')" ondrop="dropToEmpParty(event,${pi},this)">
           <div class="flex items-center justify-between mb-2">
-            ${isAdmin ? 
-              `<input type="text" value="${party.name}" placeholder="ชื่อปาร์ตี้..." class="font-bold text-sm text-amber-800 bg-transparent outline-none border-b border-transparent hover:border-amber-300 focus:border-amber-500 transition-colors flex-1" onchange="renameEmp(${pi},this.value)">` :
-              `<span class="font-bold text-sm text-amber-800 flex-1">${party.name}</span>`
-            }
+            <input type="text" value="${party.name}" placeholder="ชื่อปาร์ตี้..." class="font-bold text-sm text-amber-800 bg-transparent outline-none border-b border-transparent hover:border-amber-300 focus:border-amber-500 transition-colors flex-1" onchange="renameEmp(${pi},this.value)">
             <div class="flex items-center gap-1.5 ml-2">
               <span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">${party.members.length}/5</span>
-              ${isAdmin ? `<button onclick="delEmpParty(${pi})" class="text-slate-300 hover:text-red-400 transition-colors text-xs">🗑️</button>` : ''}
+              <button onclick="delEmpParty(${pi})" class="text-slate-300 hover:text-red-400 transition-colors text-xs">🗑️</button>
             </div>
           </div>
-          ${(party.members.length===0 && isAdmin)?'<div class="text-slate-300 text-xs text-center py-2 pointer-events-none">↓ ลากสมาชิกมาวาง</div>':''}
+          ${(party.members.length===0)?'<div class="text-slate-300 text-xs text-center py-2 pointer-events-none">↓ ลากสมาชิกมาวาง</div>':''}
           <div class="space-y-1 mb-2">
             ${party.members.map(mid=>{
               const m=getMember(mid); if(!m) return '';
               const ji=getJobInfo(m.job);
-              return `<div class="party-member flex items-center gap-1.5 text-xs p-1.5 rounded-lg transition-opacity" style="background:${ji.bg};${isAdmin?'cursor:grab':''}"
-                ${isAdmin ? `draggable="true" ondragstart="if(event.target.closest('button')){event.preventDefault();return;}startDragEmp(event,${mid})" ondragend="endDrag(event)" ontouchstart="if(!event.target.closest('button'))touchStartDrag(event,${mid},'emp',false)"` : ''}>
-                ${isAdmin ? '<span class="text-slate-300 leading-none select-none">⠿</span>' : ''}
+              return `<div class="party-member flex items-center gap-1.5 text-xs p-1.5 rounded-lg transition-opacity" style="background:${ji.bg};cursor:grab"
+                draggable="true" ondragstart="if(event.target.closest('button')){event.preventDefault();return;}startDragEmp(event,${mid})" ondragend="endDrag(event)" ontouchstart="if(!event.target.closest('button'))touchStartDrag(event,${mid},'emp',false)">
+                <span class="text-slate-300 leading-none select-none">⠿</span>
                 <span>${ji.emoji}</span>
                 <span class="pmt flex-1 font-medium truncate" style="color:${ji.color}">${m.name}</span>
                 <span class="text-slate-400">${m.job.split(' ')[0]}</span>
-                ${isAdmin ? `<button onclick="event.stopPropagation();removeEmpMember(${pi},${mid})" class="text-slate-300 hover:text-red-400 transition-colors">✕</button>` : ''}
+                <button onclick="event.stopPropagation();removeEmpMember(${pi},${mid})" class="text-slate-300 hover:text-red-400 transition-colors">✕</button>
               </div>`;
             }).join('')}
           </div>
-          ${(party.members.length<5 && unassigned.length && isAdmin)?
+          ${(party.members.length<5 && unassigned.length)?
             `<button onclick="openEmpAddModal(${pi})" class="w-full text-xs text-slate-400 hover:text-amber-600 py-1.5 border border-dashed border-amber-200 hover:border-amber-400 rounded-lg transition-colors">+ เพิ่มสมาชิก</button>`:''}
         </div>`).join('')}
       </div>`}
@@ -763,7 +759,7 @@ function renderEmperium(){
 </div>`;
 }
 
-/// ============================================================
+// ============================================================
 // RENDER: MEMBERS & ATTENDANCE & SETTINGS
 // ============================================================
 function renderMembers(){
@@ -841,7 +837,7 @@ function renderAttendance(){
   <h1 class="text-2xl font-bold text-slate-800">📊 สถิติการเข้าร่วม</h1>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     ${trackEvts.map(ev=>{
-      const att=getAttending(ev.id),pct=Math.round(att.length/MEMBERS.length*100);
+      const att=getAttending(ev.id),pct=Math.round(att.length/(MEMBERS.length||1)*100);
       return `<div class="card p-4 cursor-pointer hover:shadow-md transition-shadow"
            onclick="${ev.type==='guild_league'?"showView('guild-league')":"showView('emperium')"}">
         <div class="flex items-center gap-3 mb-3">
@@ -924,7 +920,6 @@ function renderSettings(){
 // ACTIONS
 // ============================================================
 function cycleSignup(eid,mid){
-  if(state.userRole !== 'admin') return;
   const cur=getSignup(eid,mid);
   setSignup(eid,mid,cur==='maybe'?'yes':cur==='yes'?'no':'maybe');
   rerender();
@@ -1049,7 +1044,7 @@ function copyEmp(){
 }
 
 function resetToDefault(){
-  if(!confirm("รีเซ็ตกลับไปใช้ข้อมูล Default หรือไม่?\n*หากต้องการข้อมูลจาก Sheet คืน ให้กด โหลดข้อมูลจากคลาวด์ อีกครั้ง*")) return;
+  if(!confirm("รีเซ็ตกลับไปใช้ข้อมูลเริ่มต้นหรือไม่?\n*หากต้องการข้อมูลจาก Sheet คืน ให้กด โหลดข้อมูลจากคลาวด์ อีกครั้ง*")) return;
   state.members=null; state.lastSync=null;
   saveState(); updateSyncStatus();
   document.getElementById('total-members').textContent=getMembers().length;
@@ -1057,7 +1052,7 @@ function resetToDefault(){
 }
 
 // ------------------------------------------------------------
-// ADD MEMBER
+// ADD / DELETE MEMBER
 // ------------------------------------------------------------
 function openAddMemberModal() {
   const jobs = Object.keys(JOB_INFO).sort();
@@ -1105,30 +1100,16 @@ function submitAddMember(e) {
   const joinDate = document.getElementById('add-member-date').value;
 
   if (!name) return;
+  if (!state.members) state.members = [];
 
-  if (!state.members) {
-    state.members = JSON.parse(JSON.stringify(MEMBERS_DEFAULT));
-  }
-
-  state.members.push({
-    name: name,
-    job: job,
-    guildRole: role,
-    joinDate: joinDate
-  });
-
+  state.members.push({ name: name, job: job, guildRole: role, joinDate: joinDate });
   saveState();
   document.getElementById('total-members').textContent = getMembers().length;
   closeModal();
-  showToast(`✅ เพิ่มสมาชิก ${name} สำเร็จและเซฟขึ้นคลาวด์แล้ว`);
+  showToast(`✅ เพิ่มสมาชิก ${name} สำเร็จ`);
   rerender();
 }
-// ------------------------------------------------------------
-// DELETE MEMBER
-// ------------------------------------------------------------
-// ------------------------------------------------------------
-// DELETE MEMBER
-// ------------------------------------------------------------
+
 function deleteMember(id, name) {
   if (state.userRole !== 'admin') return;
   
@@ -1136,10 +1117,8 @@ function deleteMember(id, name) {
     return;
   }
 
-  // 1. ลบออกจากรายชื่อหลัก (แก้มาใช้ name ในการค้นหาแทน id)
+  // 1. ลบออกจากรายชื่อหลัก (ใช้ name ในการลบ)
   state.members = state.members.filter(m => m.name !== name);
-
-  // --- ส่วนสำคัญ: ต้องขยับ ID ของคนที่เหลือในระบบ เพื่อไม่ให้ปาร์ตี้คนอื่นรวน ---
 
   // 2. จัดการข้อมูลเช็คชื่อ (ลบคนนี้ออก และขยับ ID คนถัดไป)
   for (let ev in state.signups) {
@@ -1147,9 +1126,8 @@ function deleteMember(id, name) {
     const newSignups = {};
     for (let oldIdStr in state.signups[ev]) {
       let oldId = parseInt(oldIdStr);
-      if (oldId === id) continue; // ข้าม (ลบ) คนที่ถูกกดลบ
-      
-      let newId = oldId > id ? oldId - 1 : oldId; // ขยับ ID คนที่อยู่ต่อท้าย
+      if (oldId === id) continue; // ข้ามคนที่ถูกกดลบ
+      let newId = oldId > id ? oldId - 1 : oldId; 
       newSignups[newId] = state.signups[ev][oldIdStr];
     }
     state.signups[ev] = newSignups;
@@ -1182,7 +1160,6 @@ function deleteMember(id, name) {
     }
   }
 
-  // บันทึกและอัปเดตหน้าจอ
   saveState();
   document.getElementById('total-members').textContent = getMembers().length;
   showToast(`🗑️ ลบ ${name} ออกจากกิลด์แล้ว`);
@@ -1190,10 +1167,10 @@ function deleteMember(id, name) {
 }
 
 // ============================================================
-// CHECK-IN SMART CLICK (click = remove from party OR cycle signup)
+// CHECK-IN SMART CLICK 
 // ============================================================
 function clickCheckinGL(e, mid){
-  if(_drag) return; // ignore phantom click after drag
+  if(_drag) return; 
   const d=getGLData(glEv);
   const pi=d.elite.findIndex(p=>p.includes(mid));
   if(pi>=0){
@@ -1225,17 +1202,12 @@ function clickCheckinEmp(e, mid){
 }
 
 // ============================================================
-// DRAG AND DROP
+// DRAG AND DROP / TOUCH EVENT (Unrestricted)
 // ============================================================
 let _drag = null;
-
-// ============================================================
-// TOUCH DRAG (mobile / tablet support)
-// ============================================================
 let _touch = null;
 
 function touchStartDrag(e, mid, mode, fromCheckin){
-  if(state.userRole !== 'admin') return;
   if(e.target.closest('button')) return;
   const t = e.touches[0];
   _touch = { mid, mode, fromCheckin, startX:t.clientX, startY:t.clientY, moved:false, el:e.currentTarget, ghost:null, offsetX:0, offsetY:0 };
@@ -1247,12 +1219,10 @@ document.addEventListener('touchmove', function(e){
   const dx = t.clientX - _touch.startX, dy = t.clientY - _touch.startY;
 
   if(!_touch.moved && Math.sqrt(dx*dx+dy*dy) > 9){
-    // Commit to drag
     _touch.moved = true;
     _drag = { mid:_touch.mid, mode:_touch.mode, fromCheckin:_touch.fromCheckin };
     _touch.el.classList.add('dragging');
 
-    // Build ghost
     const rect = _touch.el.getBoundingClientRect();
     const g = _touch.el.cloneNode(true);
     g.id = 'touch-ghost';
@@ -1271,7 +1241,6 @@ document.addEventListener('touchmove', function(e){
       _touch.ghost.style.left = (t.clientX - _touch.offsetX) + 'px';
       _touch.ghost.style.top  = (t.clientY - _touch.offsetY) + 'px';
     }
-    // Highlight drop zone under finger
     if(_touch.ghost) _touch.ghost.style.visibility = 'hidden';
     const under = document.elementFromPoint(t.clientX, t.clientY);
     if(_touch.ghost) _touch.ghost.style.visibility = '';
@@ -1283,13 +1252,11 @@ document.addEventListener('touchmove', function(e){
 
 document.addEventListener('touchend', function(e){
   if(!_touch) return;
-  // Clean up visuals
   if(_touch.ghost){ _touch.ghost.remove(); _touch.ghost = null; }
   document.querySelectorAll('.dragging').forEach(el=>el.classList.remove('dragging'));
   document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
 
   if(!_touch.moved){
-    // Plain tap — let onclick fire naturally
     _touch = null;
     return;
   }
@@ -1298,7 +1265,6 @@ document.addEventListener('touchend', function(e){
   const { mid, mode, fromCheckin } = _touch;
   _touch = null;
 
-  // Find drop zone under finger
   const under = document.elementFromPoint(t.clientX, t.clientY);
   const dz    = under?.closest('[data-drop]');
 
@@ -1320,7 +1286,6 @@ document.addEventListener('touchend', function(e){
       }
     }
   } else {
-    // Dropped outside any party zone
     if(!fromCheckin){
       if(mode==='gl'){
         const d=getGLData(glEv);
@@ -1346,7 +1311,6 @@ document.addEventListener('touchend', function(e){
 });
 
 function startDragGL(e, mid){
-  if(state.userRole !== 'admin') return;
   _drag = {mid, mode:'gl', fromCheckin:false};
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', String(mid));
@@ -1354,7 +1318,6 @@ function startDragGL(e, mid){
   requestAnimationFrame(()=>el.classList.add('dragging'));
 }
 function startDragEmp(e, mid){
-  if(state.userRole !== 'admin') return;
   _drag = {mid, mode:'emp', fromCheckin:false};
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', String(mid));
@@ -1362,7 +1325,6 @@ function startDragEmp(e, mid){
   requestAnimationFrame(()=>el.classList.add('dragging'));
 }
 function startDragFromCheckin(e, mid, mode){
-  if(state.userRole !== 'admin') return;
   _drag = {mid, mode, fromCheckin:true};
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', String(mid));
@@ -1404,7 +1366,6 @@ function _getDragMid(e){
   return isNaN(mid) ? null : mid;
 }
 function dropToElite(e, pi, el){
-  if(state.userRole !== 'admin') return;
   e.preventDefault();
   if(el) el.classList.remove('drag-over');
   const mid = _getDragMid(e); if(!mid) return;
@@ -1414,7 +1375,6 @@ function dropToElite(e, pi, el){
   assignToElite(glEv, pi, mid);
 }
 function dropToSecondaryZone(e, el){
-  if(state.userRole !== 'admin') return;
   e.preventDefault();
   if(el) el.classList.remove('drag-over');
   const mid = _getDragMid(e); if(!mid) return;
@@ -1424,7 +1384,6 @@ function dropToSecondaryZone(e, el){
   assignToSecondary(glEv, mid);
 }
 function dropToEmpParty(e, pi, el){
-  if(state.userRole !== 'admin') return;
   e.preventDefault();
   if(el) el.classList.remove('drag-over');
   const mid = _getDragMid(e); if(!mid) return;
@@ -1457,7 +1416,7 @@ function showView(v){
   state.currentView=v;
   document.querySelectorAll('.nav-link').forEach(el=>el.classList.remove('active'));
   const n=document.getElementById(`nav-${v}`); if(n) n.classList.add('active');
-  closeSidebar(); // close mobile sidebar on nav
+  closeSidebar();
   rerender();
 }
 function toggleSidebar(){
@@ -1476,7 +1435,6 @@ function rerender(){
   const views={dashboard:renderDashboard,calendar:renderCalendar,'guild-league':renderGuildLeague,emperium:renderEmperium,members:renderMembers,attendance:renderAttendance,settings:renderSettings};
   m.innerHTML=(views[state.currentView]||renderDashboard)();
   
-  // Sync mobile member count
   const mc=document.getElementById('mobile-member-count');
   if(mc) mc.textContent=`👥 ${getMembers().length}`;
 }
