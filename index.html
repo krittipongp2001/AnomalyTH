@@ -1,3 +1,4 @@
+index.html
 <!DOCTYPE html>
 <html lang="th">
 
@@ -82,7 +83,8 @@
         </div>
         <nav class="flex-1 p-2 space-y-0.5 mt-1 overflow-y-auto">
           <div class="nav-link active" onclick="showView('dashboard')" id="nav-dashboard">
-            <span>🏠</span><span>Dashboard</span></div>
+            <span>🏠</span><span>Dashboard</span>
+          </div>
           <div class="nav-link" onclick="showView('calendar')" id="nav-calendar"><span>📅</span><span>ปฏิทิน
               Event</span></div>
           <div class="border-t border-white/5 my-2 mx-1"></div>
@@ -196,6 +198,7 @@
       signups: {}, glParties: {}, empParties: {},
       members: null,
       lastSync: null,
+      lastAttendanceReset: null,
       userRole: null
     };
 
@@ -221,23 +224,32 @@
         // เซฟลงเครื่อง 
         localStorage.setItem("ro_gm_v3", JSON.stringify(copy));
 
-        // ยิงข้อมูลไปเซฟที่ Google Sheets (อนุญาตให้ User ทำงานนี้ได้เพื่อให้ซิงค์ปาร์ตี้อัตโนมัติ)
+        // ยิงข้อมูลไปเซฟที่ Google Sheets
         if (APP_SCRIPT_URL && APP_SCRIPT_URL !== "วาง_URL_ของ_APPS_SCRIPT_ที่นี่") {
           document.getElementById('sync-status').textContent = 'กำลังบันทึกออนไลน์...';
           document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-yellow-400';
 
-          fetch(APP_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(copy)
-          }).then(() => {
-            document.getElementById('sync-status').textContent = 'บันทึกออนไลน์ล่าสุดแล้ว';
-            document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-green-400';
-          }).catch(e => {
-            document.getElementById('sync-status').textContent = '❌ เซฟออนไลน์ล้มเหลว';
-            document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-red-400';
-          });
+          const postData = JSON.stringify(copy);
+          const doPost = (attempt) => {
+            fetch(APP_SCRIPT_URL, { method: 'POST', body: postData })
+              .then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                document.getElementById('sync-status').textContent = 'บันทึกออนไลน์ล่าสุดแล้ว';
+                document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-green-400';
+              })
+              .catch(e => {
+                if (attempt < 2) {
+                  setTimeout(() => doPost(attempt + 1), 2000);
+                } else {
+                  document.getElementById('sync-status').textContent = '❌ เซฟออนไลน์ล้มเหลว';
+                  document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-red-400';
+                  console.error('saveState POST failed after retries:', e);
+                }
+              });
+          };
+          doPost(0);
         }
-      } catch (e) { }
+      } catch (e) { console.error('saveState error:', e); }
     }
 
     function handleLogin(e) {
@@ -318,9 +330,18 @@
       }
     })();
 
+    const ROLE_RANK = { "Guild Master": 1, "Vice Guild Master": 2, "Commander": 3, "Officer": 4, "Charisma Baby": 5, "Member": 6 };
+
     function getMembers() {
       const raw = state.members || MEMBERS_DEFAULT;
-      return raw.map((m, i) => ({ ...m, id: i + 1 }));
+      let members = raw.map((m, i) => ({ ...m, id: i + 1 }));
+      members.sort((a, b) => {
+        const rankA = ROLE_RANK[a.guildRole] || 99;
+        const rankB = ROLE_RANK[b.guildRole] || 99;
+        if (rankA !== rankB) return rankA - rankB;
+        return a.name.localeCompare(b.name, 'th', { sensitivity: 'base' });
+      });
+      return members;
     }
 
     // ============================================================
@@ -398,30 +419,57 @@
       document.getElementById('sync-status').textContent = 'กำลังดึงข้อมูล...';
 
       try {
-        const res = await fetch(APP_SCRIPT_URL);
+        // Cache-busting: ป้องกัน browser ใช้ข้อมูลเก่าจาก cache
+        const res = await fetch(APP_SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' });
         const data = await res.json();
 
         if (data.members && data.members.length > 0) {
-          state.members = data.members;
-          state.signups = Object.keys(data.signups).length ? data.signups : state.signups;
-          state.glParties = Object.keys(data.glParties).length ? data.glParties : state.glParties;
-          state.empParties = Object.keys(data.empParties).length ? data.empParties : state.empParties;
+          // Merge สมาชิก: รวมข้อมูลจาก cloud + local ไม่ให้สูญหาย
+          const remoteMembers = data.members;
+          const localMembers = state.members || [];
+          const remoteNames = new Set(remoteMembers.map(m => m.name));
+          const merged = [...remoteMembers];
+          // เพิ่มสมาชิกที่มีอยู่ใน local แต่ไม่มีใน cloud (กรณี POST ล้มเหลวก่อนหน้า)
+          localMembers.forEach(m => {
+            if (!remoteNames.has(m.name)) merged.push(m);
+          });
+
+          const hadLocalExtras = merged.length > remoteMembers.length;
+
+          state.members = merged;
+          state.signups = Object.keys(data.signups || {}).length ? data.signups : state.signups;
+          state.glParties = Object.keys(data.glParties || {}).length ? data.glParties : state.glParties;
+          state.empParties = Object.keys(data.empParties || {}).length ? data.empParties : state.empParties;
+          // Sync lastAttendanceReset จาก cloud (ใช้ค่าที่ใหม่กว่า)
+          if (data.lastAttendanceReset) {
+            const remoteReset = new Date(data.lastAttendanceReset);
+            const localReset = state.lastAttendanceReset ? new Date(state.lastAttendanceReset) : null;
+            if (!localReset || remoteReset > localReset) {
+              state.lastAttendanceReset = data.lastAttendanceReset;
+            }
+          }
           state.lastSync = new Date().toISOString();
 
           const copy = { ...state }; delete copy.userRole;
           localStorage.setItem("ro_gm_v3", JSON.stringify(copy));
 
+          // ถ้ามีสมาชิก local ที่ cloud ยังไม่มี → POST กลับเพื่ออัพเดท cloud
+          if (hadLocalExtras) {
+            fetch(APP_SCRIPT_URL, { method: 'POST', body: JSON.stringify(copy) }).catch(() => { });
+          }
+
           updateSyncStatus();
           document.getElementById('total-members').textContent = getMembers().length;
-          showToast(`✅ ซิงค์ข้อมูลล่าสุดสำเร็จ!`);
+          showToast(`✅ ซิงค์สำเร็จ! (${merged.length} คน)`);
           rerender();
         } else {
           throw new Error("ยังไม่มีข้อมูลในระบบ");
         }
       } catch (e) {
-        console.error(e);
+        console.error('syncFromSheets error:', e);
         showToast(`❌ ซิงค์ข้อมูลล้มเหลว หรือยังไม่มีข้อมูล`);
         document.getElementById('sync-status').textContent = 'sync failed';
+        document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-red-400';
       } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '🔄 โหลดข้อมูลจากคลาวด์'; }
       }
@@ -788,7 +836,7 @@
             <div class="text-xs font-semibold truncate">${m.name}</div>
             <div class="job-label text-xs opacity-60 truncate" style="color:${ji.color}">${m.job}</div>
           </div>
-          <span class="flex-shrink-0 text-sm">${badge}</span>
+          <span class="flex-shrink-0 text-sm">${badge || (status === 'yes' ? '✅' : status === 'no' ? '❌' : '')}</span>
         </div>`;
       }).join('')}
     </div>
@@ -876,7 +924,6 @@
           <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">#</th>
           <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">ชื่อ</th>
           <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">อาชีพ</th>
-          <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">บทบาท</th>
           <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">ตำแหน่ง</th>
           <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">เข้ากิลวันที่</th>
           <th class="text-left py-3 px-4 text-slate-500 font-semibold text-xs">อยู่ในกิล</th>
@@ -899,12 +946,12 @@
               </div>
             </td>
             <td class="py-2.5 px-4"><span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium" style="background:${ji.bg};color:${ji.color}">${jobIcon(m.job, '16px')} ${m.job}</span></td>
-            <td class="py-2.5 px-4"><span class="inline-flex text-xs px-2 py-1 rounded-full font-semibold ${ROLE_COLOR[ji.role] || 'bg-slate-100 text-slate-600'}">${ROLE_LABEL[ji.role] || ji.role}</span></td>
             <td class="py-2.5 px-4"><span class="inline-flex text-xs px-2 py-1 rounded-full ${rs}">${m.guildRole}</span></td>
             <td class="py-2.5 px-4 text-xs text-slate-500">${m.joinDate || '—'}</td>
             <td class="py-2.5 px-4">${dur ? `<span class="text-xs font-medium ${isNew ? 'text-green-600' : 'text-slate-600'}">${dur}</span>` : `<span class="text-xs text-slate-300">—</span>`}</td>
             ${isAdmin ? `<td class="py-2.5 px-4 text-center">
               <div class="flex items-center justify-center gap-1">
+                <button onclick="openChangeRoleModal(${m.id},'${m.name}','${m.guildRole}')" class="text-slate-300 hover:text-purple-500 transition-colors p-1" title="เปลี่ยนตำแหน่ง">👑</button>
                 <button onclick="openChangeJobModal(${m.id},'${m.name}','${m.job}')" class="text-slate-300 hover:text-blue-500 transition-colors p-1" title="เปลี่ยนอาชีพ">🔄</button>
                 <button onclick="deleteMember(${m.id}, '${m.name}')" class="text-slate-300 hover:text-red-500 transition-colors p-1" title="ลบผู้เล่นนี้ออกจากกิลด์">🗑️</button>
               </div>
@@ -919,14 +966,64 @@
 
     function renderAttendance() {
       const MEMBERS = getMembers();
+      const isAdmin = state.userRole === 'admin';
       const trackEvts = WEEKLY_EVENTS.filter(e => e.type === 'guild_league' || e.type === 'emperium');
+
+      // คำนวณข้อมูล reset
+      const now = new Date();
+      const lastReset = state.lastAttendanceReset ? new Date(state.lastAttendanceReset) : null;
+      const lastResetStr = lastReset ? lastReset.toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+
+      // หาวันอาทิตย์ที่ผ่านมา (23:59)
+      const lastSunday = new Date(now);
+      const diff = (now.getDay() === 0) ? 0 : now.getDay();
+      lastSunday.setDate(now.getDate() - diff);
+      lastSunday.setHours(23, 59, 0, 0);
+
+      // สถานะ: รีเซ็ตแล้วหรือยังสำหรับสัปดาห์นี้
+      const alreadyResetThisWeek = lastReset && lastReset >= lastSunday;
+
+      // วันอาทิตย์ถัดไป 23:59
+      const nextSunday = new Date(now);
+      const daysUntilSun = (7 - now.getDay()) % 7 || 7;
+      nextSunday.setDate(now.getDate() + daysUntilSun);
+      nextSunday.setHours(23, 59, 0, 0);
+      const msUntil = nextSunday - now;
+      const hUntil = Math.floor(msUntil / 3600000);
+      const mUntil = Math.floor((msUntil % 3600000) / 60000);
+      const countdownStr = hUntil > 48 ? `${Math.floor(hUntil / 24)} วัน` : hUntil > 0 ? `${hUntil} ชม. ${mUntil} นาที` : `${mUntil} นาที`;
+
       return `
 <div class="p-4 md:p-6 space-y-4 md:space-y-5">
-  <h1 class="text-2xl font-bold text-slate-800">📊 สถิติการเข้าร่วม</h1>
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <h1 class="text-2xl font-bold text-slate-800">📊 สถิติการเข้าร่วม</h1>
+  </div>
+
+  <!-- Status Banner -->
+  <div class="rounded-2xl px-5 py-4 flex flex-wrap items-center gap-4 ${alreadyResetThisWeek ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}">
+    <div class="flex items-center gap-3 flex-1 min-w-0">
+      <span class="text-2xl">${alreadyResetThisWeek ? '✅' : '⏳'}</span>
+      <div>
+        <div class="font-semibold text-sm ${alreadyResetThisWeek ? 'text-green-700' : 'text-amber-700'}">
+          ${alreadyResetThisWeek ? 'รีเซ็ตสถิติสัปดาห์นี้แล้ว' : 'ยังไม่ได้รีเซ็ตสัปดาห์นี้'}
+        </div>
+        <div class="text-xs ${alreadyResetThisWeek ? 'text-green-600' : 'text-amber-600'} mt-0.5">
+          ${alreadyResetThisWeek
+          ? `รีเซ็ตล่าสุด: ${lastResetStr}`
+          : (lastResetStr ? `รีเซ็ตล่าสุด: ${lastResetStr}` : 'ยังไม่เคยรีเซ็ต')}
+        </div>
+      </div>
+    </div>
+    <div class="text-right flex-shrink-0">
+      <div class="text-xs text-slate-500">Auto-reset วันอาทิตย์ 23:59</div>
+      <div class="text-xs font-semibold ${alreadyResetThisWeek ? 'text-green-600' : 'text-amber-600'} mt-0.5">ครั้งถัดไปใน ${countdownStr}</div>
+    </div>
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     ${trackEvts.map(ev => {
-        const att = getAttending(ev.id), pct = Math.round(att.length / (MEMBERS.length || 1) * 100);
-        return `<div class="card p-4 cursor-pointer hover:shadow-md transition-shadow"
+            const att = getAttending(ev.id), pct = Math.round(att.length / (MEMBERS.length || 1) * 100);
+            return `<div class="card p-4 cursor-pointer hover:shadow-md transition-shadow"
            onclick="${ev.type === 'guild_league' ? `glEv='${ev.id}'; showView('guild-league')` : `empEv='${ev.id}'; showView('emperium')`}">
         <div class="flex items-center gap-3 mb-3">
           <span class="text-2xl">${ev.icon}</span>
@@ -943,7 +1040,7 @@
           <span class="text-slate-400">${att.length}/${MEMBERS.length}</span>
         </div>
       </div>`;
-      }).join('')}
+          }).join('')}
   </div>
   <div class="card p-5">
     <h2 class="font-bold text-slate-700 mb-4">📋 ตารางรายบุคคล</h2>
@@ -958,13 +1055,13 @@
         </thead>
         <tbody class="divide-y divide-slate-100">
           ${MEMBERS.map(m => {
-        const ji = getJobInfo(m.job), att = trackEvts.filter(ev => getSignup(ev.id, m.id) === 'yes').length;
-        return `<tr class="hover:bg-slate-50">
+            const ji = getJobInfo(m.job), att = trackEvts.filter(ev => getSignup(ev.id, m.id) === 'yes').length;
+            return `<tr class="hover:bg-slate-50">
               <td class="py-2 px-3 whitespace-nowrap"><div class="flex items-center gap-1.5">${jobIcon(m.job, '16px')}<span class="font-medium">${m.name}</span></div></td>
               ${trackEvts.map(ev => { const s = getSignup(ev.id, m.id); return `<td class="py-2 px-2 text-center">${s === 'yes' ? '✅' : s === 'no' ? '❌' : '⬜'}</td>`; }).join('')}
               <td class="py-2 px-3 text-center font-bold ${att > 0 ? 'text-green-600' : 'text-slate-400'}">${att}/${trackEvts.length}</td>
             </tr>`;
-      }).join('')}
+          }).join('')}
         </tbody>
       </table>
     </div>
@@ -975,9 +1072,15 @@
     function renderSettings() {
       const hasSync = !!state.lastSync;
       const lastSyncStr = hasSync ? new Date(state.lastSync).toLocaleString('th-TH') : 'ยังไม่เคย Sync';
+
+      const lastReset = state.lastAttendanceReset ? new Date(state.lastAttendanceReset) : null;
+      const lastResetStr = lastReset ? lastReset.toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'ยังไม่เคยรีเซ็ต';
+
       return `
 <div class="p-4 md:p-6 w-full max-w-3xl space-y-5">
   <h1 class="text-2xl font-bold text-slate-800">⚙️ ตั้งค่า (Settings)</h1>
+
+  <!-- Cloud Sync -->
   <div class="card p-6 space-y-5">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-2xl">☁️</div>
@@ -986,7 +1089,6 @@
         <p class="text-sm text-slate-500">ข้อมูลทั้งหมดจะถูกบันทึกขึ้น Google Sheets อัตโนมัติ (Auto-save)</p>
       </div>
     </div>
-    
     <div class="flex items-center justify-between flex-wrap gap-3 mt-4 pt-4 border-t border-slate-100">
       <div class="text-sm text-slate-500">
         <span>สถานะข้อมูล: </span>
@@ -1000,6 +1102,28 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Attendance Reset (Admin Only) -->
+  <div class="card p-6">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center text-2xl">🔄</div>
+      <div>
+        <h2 class="font-bold text-slate-800">รีเซ็ตสถิติการเข้าร่วม <span class="text-xs font-normal text-red-500 ml-1">— Admin Only</span></h2>
+        <p class="text-sm text-slate-500">ล้างข้อมูลเช็คชื่อ + การจัดปาร์ตี้ GL และ Emperium Overrun ทุก event</p>
+      </div>
+    </div>
+    <div class="flex items-center justify-between flex-wrap gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+      <div class="text-sm">
+        <div class="font-semibold text-red-700">รีเซ็ตล่าสุด</div>
+        <div class="text-xs text-red-500 mt-0.5">${lastResetStr}</div>
+      </div>
+      <button onclick="resetAttendance(true)"
+        class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2">
+        🔄 รีเซ็ตสถิติ (Manual)
+      </button>
+    </div>
+    <p class="text-xs text-slate-400 mt-3">⚠️ ระบบจะ Auto-reset ทุกวันอาทิตย์เวลา 23:59 โดยอัตโนมัติ · การรีเซ็ตจะไม่ลบข้อมูลสมาชิก</p>
   </div>
 </div>`;
     }
@@ -1101,9 +1225,37 @@
       saveState(); closeModal(); rerender();
     }
 
-    function addEmpParty() { const p = getEmpData(empEv); p.push({ name: `ปาร์ตี้ ${p.length + 1}`, members: [] }); saveState(); rerender(); }
+    function addEmpParty() {
+      const p = getEmpData(empEv);
+      let nextNum = 1;
+      if (p.length > 0) {
+        let maxNum = 0;
+        p.forEach(party => {
+          const match = party.name.match(/ปาร์ตี้\s*(\d+)/);
+          if (match) {
+            const num = parseInt(match[1]);
+            if (num > maxNum) maxNum = num;
+          }
+        });
+        nextNum = maxNum > 0 ? maxNum + 1 : p.length + 1;
+      }
+      p.push({ name: `ปาร์ตี้ ${nextNum}`, members: [] });
+      saveState(); rerender();
+    }
     function renameEmp(pi, name) { getEmpData(empEv)[pi].name = name; saveState(); }
-    function delEmpParty(pi) { if (!confirm("ลบปาร์ตี้นี้?")) return; getEmpData(empEv).splice(pi, 1); saveState(); rerender(); }
+    function delEmpParty(pi) {
+      if (!confirm("ลบปาร์ตี้นี้?")) return;
+      const p = getEmpData(empEv);
+      p.splice(pi, 1);
+      let expectedNum = 1;
+      p.forEach((party) => {
+        if (party.name.match(/^ปาร์ตี้\s*\d+$/)) {
+          party.name = `ปาร์ตี้ ${expectedNum}`;
+        }
+        expectedNum++;
+      });
+      saveState(); rerender();
+    }
     function removeEmpMember(pi, mid) { getEmpData(empEv)[pi].members = getEmpData(empEv)[pi].members.filter(i => i !== mid); setSignup(empEv, mid, 'maybe'); saveState(); rerender(); }
     function openEmpAddModal(pi) {
       const att = getAttending(empEv), parties = getEmpData(empEv);
@@ -1144,6 +1296,43 @@
       document.getElementById('total-members').textContent = getMembers().length;
       showToast("↩️ ล้างข้อมูลเรียบร้อยแล้ว"); rerender();
     }
+
+    // ============================================================
+    // ATTENDANCE RESET
+    // ============================================================
+    function resetAttendance(isManual = false) {
+      if (isManual && state.userRole !== 'admin') return;
+      if (isManual && !confirm('⚠️ รีเซ็ตสถิติการเข้าร่วมทั้งหมด\n(GL + Emperium ทุก event)\n\nยืนยันหรือไม่?')) return;
+
+      // ล้าง signups, glParties, empParties
+      state.signups = {};
+      state.glParties = {};
+      state.empParties = {};
+      state.lastAttendanceReset = new Date().toISOString();
+      saveState();
+      rerender();
+      showToast(isManual ? '🔄 รีเซ็ตสถิติเรียบร้อยแล้ว' : '🔄 รีเซ็ตสถิติอัตโนมัติ (วันอาทิตย์)');
+    }
+
+    // ตรวจสอบทุก 1 นาที — ถ้าวันอาทิตย์ 23:59 ให้รีเซ็ตอัตโนมัติ
+    function checkAutoReset() {
+      const now = new Date();
+      if (now.getDay() === 0 && now.getHours() === 23 && now.getMinutes() === 59) {
+        // ตรวจว่ารีเซ็ตไปแล้วในนาทีนี้หรือยัง (ป้องกันรีเซ็ตซ้ำ)
+        if (state.lastAttendanceReset) {
+          const last = new Date(state.lastAttendanceReset);
+          const sameMinute = last.getDay() === now.getDay() &&
+            last.getFullYear() === now.getFullYear() &&
+            last.getMonth() === now.getMonth() &&
+            last.getDate() === now.getDate() &&
+            last.getHours() === now.getHours() &&
+            last.getMinutes() === now.getMinutes();
+          if (sameMinute) return; // รีเซ็ตไปแล้ว
+        }
+        resetAttendance(false);
+      }
+    }
+    setInterval(checkAutoReset, 60000); // ตรวจทุก 1 นาที
 
     // ------------------------------------------------------------
     // ADD / DELETE MEMBER
@@ -1293,6 +1482,41 @@
       saveState();
       closeModal();
       showToast(`✅ เปลี่ยนอาชีพ ${state.members[idx].name} เป็น ${getJobInfo(newJob).emoji} ${newJob}`);
+      rerender();
+    }
+
+    function openChangeRoleModal(id, name, currentRole) {
+      if (state.userRole !== 'admin') return;
+      const roles = ["Guild Master", "Vice Guild Master", "Commander", "Officer", "Charisma Baby", "Member"];
+      showModal(`
+    <div class="p-6">
+      <h3 class="font-bold text-xl text-slate-800 mb-1 flex items-center gap-2">👑 เปลี่ยนตำแหน่ง</h3>
+      <p class="text-sm text-slate-500 mb-4"><strong>${name}</strong></p>
+      <div class="mb-4">
+        <label class="block text-sm font-semibold text-slate-700 mb-1">ตำแหน่งใหม่</label>
+        <select id="change-role-select" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          ${roles.map(r => `<option value="${r}" ${r === currentRole ? 'selected' : ''}>${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors">ยกเลิก</button>
+        <button onclick="changeRole(${id})" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm">บันทึก</button>
+      </div>
+    </div>
+  `);
+    }
+
+    function changeRole(id) {
+      if (state.userRole !== 'admin') return;
+      const newRole = document.getElementById('change-role-select').value;
+      const idx = id - 1;
+      if (!state.members || !state.members[idx]) return;
+      const oldRole = state.members[idx].guildRole;
+      if (newRole === oldRole) { closeModal(); return; }
+      state.members[idx].guildRole = newRole;
+      saveState();
+      closeModal();
+      showToast(`✅ เปลี่ยนตำแหน่ง ${state.members[idx].name} เป็น ${newRole}`);
       rerender();
     }
 
