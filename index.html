@@ -1,4 +1,3 @@
-index.html
 <!DOCTYPE html>
 <html lang="th">
 
@@ -8,6 +7,11 @@ index.html
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>⚔️ Guild Manager – RO Origin Classic</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -22,30 +26,28 @@ index.html
         <h1 class="text-2xl font-bold text-slate-800">Guild Manager</h1>
         <p class="text-slate-500 text-sm mt-1">เข้าสู่ระบบจัดการกิลด์</p>
       </div>
-      <form onsubmit="handleLogin(event)" class="space-y-4">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">ชื่อผู้ใช้ (Username)</label>
-          <input type="text" id="login-username"
-            class="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-            required placeholder="พิมพ์ username">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">รหัสผ่าน (Password)</label>
-          <input type="password" id="login-password"
-            class="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-            required placeholder="พิมพ์รหัสผ่าน">
-        </div>
-        <div class="pt-2">
-          <button type="submit"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-md min-h-[48px]">เข้าสู่ระบบ</button>
-        </div>
-      </form>
-      <div class="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 text-center space-y-2">
-        <div class="font-semibold text-slate-600">📌 บัญชีทดสอบระบบ</div>
-        <div class="flex justify-between items-center px-2">
-          <span>สมาชิก (Member)</span>
-          <span class="font-mono bg-white px-2 py-0.5 rounded border">user / user</span>
-        </div>
+      <div class="mb-8">
+        <button onclick="loginAsMember()"
+          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 text-base">
+          👥 เข้าสู่ระบบ (สมาชิกทั่วไป)
+        </button>
+      </div>
+
+      <div class="border-t border-slate-200 pt-6">
+        <p class="text-xs font-semibold text-slate-400 mb-3 text-center uppercase tracking-wider">สำหรับผู้ดูแลระบบ
+          (Admin)</p>
+        <form onsubmit="handleLogin(event)" class="space-y-3">
+          <div>
+            <input type="password" id="login-password"
+              class="w-full border border-slate-300 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all"
+              required placeholder="พิมพ์รหัสผ่านผู้ดูแลระบบ">
+          </div>
+          <div class="pt-1">
+            <button type="submit"
+              class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl transition-colors shadow-md text-sm cursor-pointer">🔒
+              เข้าสู่ระบบ Admin</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -171,13 +173,9 @@ index.html
     const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
     const WEEKLY_EVENTS = [
-      { id: "extreme_mon", name: "Extreme Challenge", day: 1, time: "00:00", type: "other", color: "#6366f1", icon: "💪" },
-      { id: "dim_drill_mon", name: "Dimension Drill", day: 1, time: "19:55", type: "other", color: "#8b5cf6", icon: "🌀" },
       { id: "guild_league_tue", name: "Guild League", day: 2, time: "19:55", type: "guild_league", color: "#ef4444", icon: "⚔️" },
-      { id: "dim_drill_wed", name: "Dimension Drill", day: 3, time: "19:55", type: "other", color: "#8b5cf6", icon: "🌀" },
       { id: "guild_league_thu", name: "Guild League", day: 4, time: "19:55", type: "guild_league", color: "#ef4444", icon: "⚔️" },
       { id: "guild_league_sat", name: "Guild League", day: 6, time: "19:55", type: "guild_league", color: "#ef4444", icon: "⚔️" },
-      { id: "themed_party_sun", name: "Themed Party", day: 0, time: "19:30", type: "other", color: "#ec4899", icon: "🎉" },
       { id: "emperium_sun", name: "Emperium Overrun", day: 0, time: "19:55", type: "emperium", color: "#f59e0b", icon: "🏰" },
     ];
 
@@ -231,9 +229,13 @@ index.html
 
           const postData = JSON.stringify(copy);
           const doPost = (attempt) => {
-            fetch(APP_SCRIPT_URL, { method: 'POST', body: postData })
-              .then(r => {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
+            fetch(APP_SCRIPT_URL, {
+              method: 'POST',
+              body: postData,
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            })
+              .then(() => {
                 document.getElementById('sync-status').textContent = 'บันทึกออนไลน์ล่าสุดแล้ว';
                 document.getElementById('sync-status').className = 'text-[10px] mt-0.5 text-green-400';
               })
@@ -252,21 +254,22 @@ index.html
       } catch (e) { console.error('saveState error:', e); }
     }
 
+    function loginAsMember() {
+      state.userRole = 'member';
+      sessionStorage.setItem('ro_gm_session', 'member');
+      startApp(false);
+    }
+
     function handleLogin(e) {
       e.preventDefault();
-      const u = document.getElementById('login-username').value.trim().toLowerCase();
       const p = document.getElementById('login-password').value;
 
-      if (u === 'admin' && p === '7878') {
+      if (p === '7878') {
         state.userRole = 'admin';
         sessionStorage.setItem('ro_gm_session', 'admin');
         startApp(false);
-      } else if (u === 'user' && p === 'user') {
-        state.userRole = 'member';
-        sessionStorage.setItem('ro_gm_session', 'member');
-        startApp(false);
       } else {
-        showToast("❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+        showToast("❌ รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง");
       }
     }
 
@@ -303,8 +306,8 @@ index.html
       sessionStorage.removeItem('ro_gm_session');
       document.getElementById('login-container').style.display = 'flex';
       document.getElementById('app-container').style.display = 'none';
-      document.getElementById('login-username').value = '';
-      document.getElementById('login-password').value = '';
+      const pwInput = document.getElementById('login-password');
+      if (pwInput) pwInput.value = '';
     }
 
     // ============================================================
@@ -325,8 +328,9 @@ index.html
       if (mb) { mb.textContent = icon; mb.title = isDark ? 'Light mode' : 'Dark mode'; }
     }
     (function () {
-      if (localStorage.getItem('darkMode') === '1') {
+      if (localStorage.getItem('darkMode') !== '0') {
         document.documentElement.classList.add('dark');
+        localStorage.setItem('darkMode', '1');
       }
     })();
 
@@ -339,6 +343,12 @@ index.html
         const rankA = ROLE_RANK[a.guildRole] || 99;
         const rankB = ROLE_RANK[b.guildRole] || 99;
         if (rankA !== rankB) return rankA - rankB;
+
+        // เรียงตามเวลาที่อยู่ในกิล (คนที่อยู่นานกว่า / วันที่เก่ากว่า ขึ้นก่อน)
+        const dateA = a.joinDate ? new Date(a.joinDate).getTime() : Date.now();
+        const dateB = b.joinDate ? new Date(b.joinDate).getTime() : Date.now();
+        if (dateA !== dateB) return dateA - dateB;
+
         return a.name.localeCompare(b.name, 'th', { sensitivity: 'base' });
       });
       return members;
@@ -380,22 +390,36 @@ index.html
     }
 
     function durationInGuild(joinDateStr) {
-      if (!joinDateStr || joinDateStr === "2024-01-01") return null;
+      if (!joinDateStr || joinDateStr === "2024-01-01" || joinDateStr === "2026-04-06T17:00:00.000Z") return null;
       const join = new Date(joinDateStr), now = new Date();
       let years = now.getFullYear() - join.getFullYear();
       let months = now.getMonth() - join.getMonth();
       let days = now.getDate() - join.getDate();
       if (days < 0) { months--; const prev = new Date(now.getFullYear(), now.getMonth(), 0); days += prev.getDate(); }
       if (months < 0) { years--; months += 12; }
-      const totalDays = Math.floor((now - join) / 86400000);
-      if (totalDays < 0) return "ยังไม่ถึงวันเข้ากิล";
+
+      const diffMs = now - join;
+      const totalDays = Math.floor(diffMs / 86400000);
+
+      if (diffMs < 0) return "ยังไม่ถึงวันเข้ากิล";
+
+      // ถ้าน้อยกว่า 24 ชั่วโมง ให้แสดงเป็นชั่วโมง (หรือนาที)
+      if (diffMs < 86400000) {
+        const hours = Math.floor(diffMs / 3600000);
+        if (hours === 0) {
+          const mins = Math.floor(diffMs / 60000);
+          return `${mins} นาที`;
+        }
+        return `${hours} ชั่วโมง`;
+      }
+
       if (totalDays < 30) return `${totalDays} วัน`;
       if (years === 0) return months > 0 ? `${months} เดือน ${days} วัน` : `${days} วัน`;
       return months > 0 ? `${years} ปี ${months} เดือน` : `${years} ปี`;
     }
 
     function isNewMember(joinDateStr) {
-      if (!joinDateStr) return false;
+      if (!joinDateStr || joinDateStr === "2024-01-01" || joinDateStr === "2026-04-06T17:00:00.000Z") return false;
       const diff = (new Date() - new Date(joinDateStr)) / 86400000;
       return diff >= 0 && diff <= 1;
     }
@@ -424,43 +448,23 @@ index.html
         const data = await res.json();
 
         if (data.members && data.members.length > 0) {
-          // Merge สมาชิก: รวมข้อมูลจาก cloud + local ไม่ให้สูญหาย
-          const remoteMembers = data.members;
-          const localMembers = state.members || [];
-          const remoteNames = new Set(remoteMembers.map(m => m.name));
-          const merged = [...remoteMembers];
-          // เพิ่มสมาชิกที่มีอยู่ใน local แต่ไม่มีใน cloud (กรณี POST ล้มเหลวก่อนหน้า)
-          localMembers.forEach(m => {
-            if (!remoteNames.has(m.name)) merged.push(m);
-          });
+          // ยึดข้อมูลจาก Cloud (Google Sheets) เป็นหลักเสมอ
+          state.members = data.members;
+          state.signups = Object.keys(data.signups || {}).length ? data.signups : {};
+          state.glParties = Object.keys(data.glParties || {}).length ? data.glParties : {};
+          state.empParties = Object.keys(data.empParties || {}).length ? data.empParties : {};
 
-          const hadLocalExtras = merged.length > remoteMembers.length;
-
-          state.members = merged;
-          state.signups = Object.keys(data.signups || {}).length ? data.signups : state.signups;
-          state.glParties = Object.keys(data.glParties || {}).length ? data.glParties : state.glParties;
-          state.empParties = Object.keys(data.empParties || {}).length ? data.empParties : state.empParties;
-          // Sync lastAttendanceReset จาก cloud (ใช้ค่าที่ใหม่กว่า)
           if (data.lastAttendanceReset) {
-            const remoteReset = new Date(data.lastAttendanceReset);
-            const localReset = state.lastAttendanceReset ? new Date(state.lastAttendanceReset) : null;
-            if (!localReset || remoteReset > localReset) {
-              state.lastAttendanceReset = data.lastAttendanceReset;
-            }
+            state.lastAttendanceReset = data.lastAttendanceReset;
           }
           state.lastSync = new Date().toISOString();
 
           const copy = { ...state }; delete copy.userRole;
           localStorage.setItem("ro_gm_v3", JSON.stringify(copy));
 
-          // ถ้ามีสมาชิก local ที่ cloud ยังไม่มี → POST กลับเพื่ออัพเดท cloud
-          if (hadLocalExtras) {
-            fetch(APP_SCRIPT_URL, { method: 'POST', body: JSON.stringify(copy) }).catch(() => { });
-          }
-
           updateSyncStatus();
           document.getElementById('total-members').textContent = getMembers().length;
-          showToast(`✅ ซิงค์สำเร็จ! (${merged.length} คน)`);
+          showToast(`✅ ซิงค์สำเร็จ! (ดึงข้อมูลล่าสุดจาก Cloud)`);
           rerender();
         } else {
           throw new Error("ยังไม่มีข้อมูลในระบบ");
@@ -536,20 +540,20 @@ index.html
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
     <div class="card p-5">
-      <h2 class="font-bold text-slate-600 mb-3 text-xs uppercase tracking-wider">⏰ Event ที่กำลังจะมาถึง</h2>
+      <h2 class="font-bold text-slate-600 dark:text-slate-300 mb-3 text-xs uppercase tracking-wider">⏰ Event ที่กำลังจะมาถึง</h2>
       <div class="space-y-2">
         ${upcoming.map(e => {
           const att = getAttending(e.id).length;
-          return `<div class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-all"
+          return `<div class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-all"
                onclick="${e.type === 'guild_league' ? `glEv='${e.id}'; showView('guild-league')` : e.type === 'emperium' ? `empEv='${e.id}'; showView('emperium')` : ""}">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style="background:${e.color}20">${e.icon}</div>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-slate-700 text-sm">${e.name}</div>
+              <div class="font-medium text-slate-700 dark:text-slate-300 text-sm">${e.name}</div>
               <div class="text-xs text-slate-400">วัน${DAYS_TH[e.day]} · ${e.time} น.</div>
             </div>
             <div class="text-right flex-shrink-0">
               <div class="text-sm font-semibold" style="color:${e.color}">${timeUntil(e.next)}</div>
-              ${att > 0 ? `<div class="text-xs text-slate-400">${att} คน</div>` : ''}
+              ${att > 0 ? `<div class="text-xs text-slate-400 dark:text-slate-500">${att} คน</div>` : ''}
             </div>
           </div>`;
         }).join('')}
@@ -557,36 +561,66 @@ index.html
     </div>
 
     <div class="card p-5">
-      <h2 class="font-bold text-slate-600 mb-3 text-xs uppercase tracking-wider">📊 อาชีพในกิล</h2>
+      <h2 class="font-bold text-slate-600 dark:text-slate-300 mb-3 text-xs uppercase tracking-wider">📊 อาชีพในกิล</h2>
       <div class="grid grid-cols-2 gap-2">
         ${Object.entries(jobCount).sort((a, b) => b[1] - a[1]).map(([job, n]) => {
           const ji = getJobInfo(job);
           return `<div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background:${ji.bg}">
             ${jobIcon(job, '24px')}
             <div class="flex-1 min-w-0">
-              <div class="text-xs font-semibold truncate" style="color:${ji.color}">${job}</div>
+              <div class="text-xs font-semibold truncate dark:text-slate-800" style="color:${ji.color}">${job}</div>
             </div>
-            <span class="text-sm font-bold" style="color:${ji.color}">${n}</span>
+            <span class="text-sm font-bold dark:text-slate-800" style="color:${ji.color}">${n}</span>
           </div>`;
         }).join('')}
       </div>
     </div>
   </div>
 
-  ${newMembers.length ? `
+  <div class="card p-5 lg:p-6 border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50/50 dark:from-blue-900/20 to-transparent">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-lg">📢</span>
+      <h2 class="font-bold text-blue-800 dark:text-blue-400 text-sm uppercase tracking-wider">ประกาศกฎระเบียบกิล</h2>
+    </div>
+    <div class="text-xs font-semibold text-blue-600 dark:text-blue-300 mb-4 bg-white dark:bg-slate-800 px-3 py-1 inline-block rounded-full shadow-sm border border-blue-100 dark:border-blue-900/50">
+      📅 มีผลบังคับใช้วันนี้ 13/04/2569
+    </div>
+    <div class="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+      <div class="flex items-start gap-2.5">
+        <span class="mt-0.5 text-blue-400">🔹</span>
+        <p><span class="font-bold text-slate-900 dark:text-white">การออนไลน์:</span> ขอความร่วมมือไม่หายไปเกิน 24 ชม. หากจำเป็นต้องออฟไลน์ยาว รบกวนแจ้งไว้ก่อนเพื่อรักษาสถานะสมาชิกครับ</p>
+      </div>
+      <div class="flex items-start gap-2.5">
+        <span class="mt-0.5 text-blue-400">🔹</span>
+        <div>
+          <span class="font-bold text-slate-900 dark:text-white">กิจกรรมกิล (อังคาร / พฤหัส / เสาร์ / อาทิตย์):</span>
+          <ul class="list-disc list-inside mt-1.5 ml-2 space-y-1 text-slate-600 dark:text-slate-400">
+            <li>เข้าอย่างน้อย 3 วันต่อสัปดาห์</li>
+            <li>หากเข้าต่ำกว่า 2 วัน (โดยไม่มีการแจ้งลา) ขออนุญาตเชิญออกเพื่อให้สิทธิ์สมาชิกท่านอื่นครับ</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card p-5">
-    <h2 class="font-bold text-slate-600 mb-3 text-xs uppercase tracking-wider">🌟 สมาชิกใหม่ (เข้ากิลภายใน 24 ชม.)</h2>
+    <h2 class="font-bold text-slate-600 dark:text-slate-300 mb-4 text-xs uppercase tracking-wider flex items-center gap-2">🌟 สมาชิกที่เข้ามาใหม่ <span class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-semibold border dark:border-slate-700">ภายใน 24 ชม.</span></h2>
+    ${newMembers.length ? `
     <div class="flex flex-wrap gap-2">
       ${newMembers.map(m => {
           const ji = getJobInfo(m.job);
-          return `<div class="flex items-center gap-2 px-3 py-2 rounded-xl text-sm" style="background:${ji.bg}">
+          return `<div class="flex items-center gap-2 px-3 py-2 rounded-xl text-sm shadow-sm dark:!bg-slate-800 dark:border-slate-700" style="background:${ji.bg}; border: 1px solid ${ji.color}20">
           ${jobIcon(m.job, '18px')}
-          <span class="font-medium" style="color:${ji.color}">${m.name}</span>
-          <span class="text-xs text-slate-400">${durationInGuild(m.joinDate)}</span>
+          <span class="font-bold" style="color:${ji.color}">${m.name}</span>
+          <span class="text-xs font-medium opacity-60" style="color:${ji.color}">· ${durationInGuild(m.joinDate)}</span>
         </div>`;
         }).join('')}
-    </div>
-  </div>`: ''}
+    </div>` : `
+    <div class="text-sm font-medium text-slate-400 dark:text-slate-500 text-center py-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+      ยังไม่มีสมาชิกใหม่ในช่วง 24 ชั่วโมงที่ผ่านมา
+    </div>`}
+  </div>
+
 </div>`;
     }
 
@@ -597,37 +631,64 @@ index.html
       const todayDow = new Date().getDay();
       const colOrder = [1, 2, 3, 4, 5, 6, 0];
       const colLabel = ["จันทร์", "อังคาร", "พุธ", "พฤหัส", "ศุกร์", "เสาร์", "อาทิตย์"];
+
       return `
-<div class="p-4 md:p-6 space-y-4 md:space-y-5">
-  <h1 class="text-2xl font-bold text-slate-800">📅 ปฏิทิน Event ประจำสัปดาห์</h1>
-  <div class="card overflow-hidden overflow-x-auto">
-  <div style="min-width:560px">
-    <div class="grid grid-cols-7 bg-blue-700">
-      ${colOrder.map((dow, i) => {
-        const t = dow === todayDow; return `<div class="py-3 text-center border-r border-blue-600 last:border-0 ${t ? 'bg-blue-500' : ''}">
-        <div class="text-white font-semibold text-sm">${colLabel[i]}</div>
-        ${t ? '<div class="text-blue-200 text-xs">วันนี้</div>' : ''}
+<div class="p-4 md:p-6 space-y-5">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xl shadow-lg">📅</div>
+    <h1 class="text-2xl font-bold text-slate-800 tracking-tight">ปฏิทิน Event กิลประจำสัปดาห์</h1>
+  </div>
+  
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
+    ${colOrder.map((dow, i) => {
+        const evts = WEEKLY_EVENTS.filter(e => e.day === dow);
+        const isToday = dow === todayDow;
+
+        return `
+      <div class="bg-white rounded-3xl p-4 shadow-sm border ${isToday ? 'border-blue-400 ring-4 ring-blue-50 relative' : 'border-slate-200'} transition-transform duration-300 flex flex-col h-full hover:shadow-md">
+        ${isToday ? `<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] uppercase font-bold px-3 py-1 rounded-full shadow-sm tracking-wider">วันนี้</div>` : ''}
+        
+        <div class="text-center mb-4 mt-1">
+          <h3 class="text-sm font-bold uppercase tracking-wider ${isToday ? 'text-blue-600' : 'text-slate-400'}">${colLabel[i]}</h3>
+        </div>
+        
+        <div class="flex-1 space-y-3">
+          ${evts.length === 0 ? `
+            <div class="h-full flex flex-col items-center justify-center opacity-40 min-h-[80px]">
+              <div class="text-xs text-slate-400 font-medium bg-slate-100 px-3 py-1 rounded-lg">ว่าง</div>
+            </div>
+          ` :
+            evts.map(e => {
+              const att = getAttending(e.id).length;
+              const cl = e.type === 'guild_league' || e.type === 'emperium';
+              let bgClass = "bg-slate-50 border-slate-200 hover:bg-slate-100";
+              let txColor = "text-slate-700";
+              let txSub = "text-slate-500";
+              if (e.color === "#ef4444") { bgClass = "bg-red-50 border-red-200 hover:bg-red-100"; txColor = "text-red-700"; txSub = "text-red-500"; }
+              if (e.color === "#f59e0b") { bgClass = "bg-amber-50 border-amber-200 hover:bg-amber-100"; txColor = "text-amber-700"; txSub = "text-amber-600"; }
+
+              return `
+            <div class="${bgClass} border rounded-2xl p-3 ${cl ? 'cursor-pointer transition-all shadow-sm' : ''}"
+                 ${cl ? `onclick="${e.type === 'guild_league' ? `glEv='${e.id}'; showView('guild-league')` : `empEv='${e.id}'; showView('emperium')`}"` : ""}>
+              
+              <div class="flex items-start gap-2">
+                <span class="text-lg leading-none">${e.icon}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-bold text-sm ${txColor} truncate leading-tight">${e.name}</div>
+                  <div class="text-[11px] font-semibold ${txSub} mt-0.5 flex items-center gap-1 opacity-80">⏰ ${e.time} น.</div>
+                </div>
+              </div>
+              
+              ${att > 0 ? `
+              <div class="mt-2.5 text-[11px] font-semibold ${txSub} flex items-center gap-1.5 border-t border-black/5 pt-2">
+                <span>👥</span> ลงชื่อแล้ว <span class="font-bold">${att}</span> คน
+              </div>` : ''}
+
+            </div>`;
+            }).join('')}
+        </div>
       </div>`;
       }).join('')}
-    </div>
-    <div class="grid grid-cols-7 divide-x divide-slate-100" style="min-height:300px">
-      ${colOrder.map(dow => {
-        const evts = WEEKLY_EVENTS.filter(e => e.day === dow), t = dow === todayDow;
-        return `<div class="p-2 space-y-2 ${t ? 'bg-blue-50' : ''}">
-          ${evts.length === 0 ? '<div class="text-slate-200 text-xs text-center mt-10">—</div>' : ''}
-          ${evts.map(e => {
-          const att = getAttending(e.id).length, cl = e.type === 'guild_league' || e.type === 'emperium';
-          return `<div class="rounded-lg p-2 text-white ${cl ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}"
-                 style="background:${e.color}" ${cl ? `onclick="${e.type === 'guild_league' ? `glEv='${e.id}'; showView('guild-league')` : `empEv='${e.id}'; showView('emperium')`}"` : ""}>
-              <div class="flex items-center gap-1 text-xs font-semibold">${e.icon} ${e.name}</div>
-              <div class="text-xs opacity-75">${e.time} น.</div>
-              ${att > 0 ? `<div class="text-xs opacity-80 mt-0.5">👥 ${att}</div>` : ''}
-            </div>`;
-        }).join('')}
-        </div>`;
-      }).join('')}
-    </div>
-  </div></div>
   </div>
 </div>`;
     }
@@ -936,6 +997,10 @@ index.html
         const rs = GUILD_ROLE_STYLE[m.guildRole] || GUILD_ROLE_STYLE["Member"];
         const dur = durationInGuild(m.joinDate);
         const isNew = isNewMember(m.joinDate);
+        let displayDate = '—';
+        if (m.joinDate && m.joinDate !== "2024-01-01" && m.joinDate !== "2026-04-06T17:00:00.000Z") {
+          displayDate = new Date(m.joinDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
         return `<tr class="hover:bg-slate-50 transition-colors">
             <td class="py-2.5 px-4 text-slate-400 text-xs">${i + 1}</td>
             <td class="py-2.5 px-4">
@@ -947,7 +1012,7 @@ index.html
             </td>
             <td class="py-2.5 px-4"><span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium" style="background:${ji.bg};color:${ji.color}">${jobIcon(m.job, '16px')} ${m.job}</span></td>
             <td class="py-2.5 px-4"><span class="inline-flex text-xs px-2 py-1 rounded-full ${rs}">${m.guildRole}</span></td>
-            <td class="py-2.5 px-4 text-xs text-slate-500">${m.joinDate || '—'}</td>
+            <td class="py-2.5 px-4 text-xs text-slate-500">${displayDate}</td>
             <td class="py-2.5 px-4">${dur ? `<span class="text-xs font-medium ${isNew ? 'text-green-600' : 'text-slate-600'}">${dur}</span>` : `<span class="text-xs text-slate-300">—</span>`}</td>
             ${isAdmin ? `<td class="py-2.5 px-4 text-center">
               <div class="flex items-center justify-center gap-1">
@@ -1340,7 +1405,11 @@ index.html
     function openAddMemberModal() {
       const jobs = Object.keys(JOB_INFO).sort();
       const roles = ["Guild Master", "Vice Guild Master", "Commander", "Officer", "Charisma Baby", "Member"];
-      const today = new Date().toISOString().split('T')[0];
+
+      // ดึงวันที่ปัจจุบันตาม Timezone ประเทศไทย (Asia/Bangkok)
+      const options = { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' };
+      const formatter = new Intl.DateTimeFormat('en-CA', options); // en-CA ให้ฟอร์แมต YYYY-MM-DD
+      const today = formatter.format(new Date());
 
       showModal(`
     <div class="p-6">
@@ -1380,7 +1449,20 @@ index.html
       const name = document.getElementById('add-member-name').value.trim();
       const job = document.getElementById('add-member-job').value;
       const role = document.getElementById('add-member-role').value;
-      const joinDate = document.getElementById('add-member-date').value;
+      const dateInput = document.getElementById('add-member-date').value;
+
+      // ใช้ Timezone ไทย เพื่อเปรียบเทียบว่าวันที่เลือกคือ "วันนี้" หรือไม่
+      const options = { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' };
+      const todayStr = new Intl.DateTimeFormat('en-CA', options).format(new Date());
+
+      let joinDate;
+      if (dateInput === todayStr) {
+        // ถ้าเป็นวันนี้ ให้บันทึกเวลาปัจจุบันเป๊ะๆ เพื่อให้นับชั่วโมงได้แม่นยำ
+        joinDate = new Date().toISOString();
+      } else {
+        // ถ้าเลือกวันอื่น (เช่นเมื่อวาน) ให้ระบุเป็นเวลา 00:00 น. ของไทย (UTC+7)
+        joinDate = new Date(dateInput + "T00:00:00+07:00").toISOString();
+      }
 
       if (!name) return;
       if (!state.members) state.members = [];
