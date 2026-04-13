@@ -297,3 +297,44 @@ html.dark .border-slate-300{border-color:#334155!important}
 
 /* Job label in check-in cards */
 html.dark .job-label{opacity:1!important;filter:brightness(2.4) saturate(0.75)}
+
+/* ============================================================
+   LIGHT MODE CONTRAST BOOST
+   ============================================================ */
+html:not(.dark) #main-content .text-slate-400,
+html:not(.dark) #modal-content .text-slate-400,
+html:not(.dark) #login-container .text-slate-400 {
+  color: #334155 !important; /* extremely contrasty */
+}
+
+html:not(.dark) #main-content .text-slate-500,
+html:not(.dark) #modal-content .text-slate-500,
+html:not(.dark) #login-container .text-slate-500 {
+  color: #1e293b !important; /* extremely contrasty */
+}
+
+html:not(.dark) #main-content .text-slate-600,
+html:not(.dark) #modal-content .text-slate-600,
+html:not(.dark) #login-container .text-slate-600 {
+  color: #0f172a !important; /* maximum contrast */
+}
+
+html:not(.dark) .opacity-60 { opacity: 0.9 !important; }
+html:not(.dark) .opacity-80 { opacity: 1 !important; }
+
+/* Boost job name readability in Light Mode */
+html:not(.dark) .job-label,
+html:not(.dark) [style*="color:"] {
+  font-weight: 700 !important;
+}
+
+html:not(.dark) #main-content .text-slate-700,
+html:not(.dark) #modal-content .text-slate-700,
+html:not(.dark) #login-container .text-slate-700 {
+  color: #1e293b !important;
+}
+
+/* Specific boost for announcement text */
+html:not(.dark) #main-content .text-blue-400 { color: #2563eb !important; } /* boost to blue-600 */
+html:not(.dark) #main-content .text-blue-600 { color: #1e40af !important; } /* boost to blue-800 */
+html:not(.dark) #main-content .text-blue-800 { color: #1e3a8a !important; }
